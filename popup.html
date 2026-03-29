@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Race Light</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 260px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #1a1a1a;
+      color: #fff;
+      padding: 16px;
+    }
+    h2 {
+      font-size: 13px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: #aaa; margin-bottom: 14px;
+    }
+    .label {
+      font-size: 10px; color: #666;
+      text-transform: uppercase; letter-spacing: 0.07em;
+      margin-bottom: 5px;
+    }
+    /* Book selector */
+    .book-selector { display: flex; gap: 8px; margin-bottom: 16px; }
+    .book-btn {
+      flex: 1; padding: 8px 0;
+      border: 2px solid #333; border-radius: 8px;
+      background: #2a2a2a; color: #777;
+      font-size: 12px; font-weight: 700;
+      cursor: pointer; text-align: center;
+      transition: all 0.1s;
+    }
+    .book-btn:hover { border-color: #555; color: #ccc; }
+    .book-btn.active-fd { border-color: #3b82f6; background: #1e3a8a33; color: #93c5fd; }
+    .book-btn.active-dk { border-color: #22c55e; background: #14532d33; color: #86efac; }
+
+    /* Server row */
+    .server-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #555; flex-shrink: 0; }
+    .status-dot.connected    { background: #22c55e; }
+    .status-dot.disconnected { background: #ef4444; }
+    input[type="text"] {
+      flex: 1; background: #2a2a2a; border: 1px solid #444;
+      border-radius: 6px; color: #fff; font-size: 12px;
+      padding: 6px 8px; outline: none;
+    }
+    input[type="text"]:focus { border-color: #888; }
+    input[type="text"]::placeholder { color: #555; }
+
+    /* Arb status card */
+    .arb-card {
+      border-radius: 8px; padding: 10px 12px;
+      margin-bottom: 14px; display: none;
+    }
+    .arb-card.arb    { background: #14532d44; border: 1px solid #16a34a88; }
+    .arb-card.no-arb { background: #7f1d1d44; border: 1px solid #dc262688; }
+    .arb-card.wait   { background: #1e293b;   border: 1px solid #33415588; }
+    .arb-status {
+      font-size: 11px; font-weight: 800;
+      letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px;
+    }
+    .arb-card.arb    .arb-status { color: #4ade80; }
+    .arb-card.no-arb .arb-status { color: #f87171; }
+    .arb-card.wait   .arb-status { color: #94a3b8; }
+    .arb-detail { font-size: 12px; color: rgba(255,255,255,0.7); }
+    .arb-detail span { font-weight: 700; color: #fff; }
+
+    /* Odds row */
+    .odds-row {
+      display: flex; gap: 8px; margin-bottom: 14px;
+    }
+    .odds-box {
+      flex: 1; background: #2a2a2a; border: 1px solid #333;
+      border-radius: 8px; padding: 8px 10px;
+    }
+    .odds-box .ob-label { font-size: 9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:2px; }
+    .odds-box.fd .ob-label { color: #60a5fa; }
+    .odds-box.dk .ob-label { color: #4ade80; }
+    .odds-box .ob-value { font-size: 22px; font-weight: 900; color: #fff; }
+
+    /* Base stake row */
+    .stake-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+    .stake-row input[type="number"] {
+      width: 80px; background: #2a2a2a; border: 1px solid #444;
+      border-radius: 6px; color: #fff; font-size: 13px; font-weight: 700;
+      padding: 6px 8px; outline: none; text-align: right;
+    }
+    .stake-row input:focus { border-color: #888; }
+
+    /* Light buttons */
+    .lights { display: flex; gap: 8px; margin-bottom: 10px; }
+    .light-btn {
+      flex: 1; height: 40px; border: none; border-radius: 8px;
+      cursor: pointer; font-size: 12px; font-weight: 700;
+      letter-spacing: 0.04em; text-transform: uppercase;
+      transition: filter 0.1s, transform 0.1s;
+      color: rgba(255,255,255,0.9);
+    }
+    .light-btn:hover  { filter: brightness(1.15); }
+    .light-btn:active { filter: brightness(0.85); }
+    .light-btn.red    { background: #dc2626; }
+    .light-btn.yellow { background: #d97706; }
+    .light-btn.green  { background: #16a34a; }
+    .light-btn.active { outline: 3px solid #fff; outline-offset: -3px; }
+    .off-btn {
+      width: 100%; padding: 7px;
+      background: #2a2a2a; border: 1px solid #333;
+      border-radius: 6px; color: #666; font-size: 11px;
+      cursor: pointer; transition: background 0.1s;
+    }
+    .off-btn:hover { background: #333; color: #aaa; }
+  </style>
+</head>
+<body>
+  <h2>Race Light</h2>
+
+  <p class="label">I am on</p>
+  <div class="book-selector">
+    <button class="book-btn" id="btnFD">FanDuel</button>
+    <button class="book-btn" id="btnDK">DraftKings</button>
+  </div>
+
+  <p class="label">Relay server IP</p>
+  <div class="server-row">
+    <div class="status-dot" id="statusDot"></div>
+    <input type="text" id="serverIp" placeholder="e.g. 192.168.1.5" />
+  </div>
+
+  <div class="arb-card wait" id="arbCard" style="display:none">
+    <div class="arb-status" id="arbStatus">Waiting for odds</div>
+    <div class="arb-detail" id="arbDetail"></div>
+  </div>
+
+  <div class="odds-row">
+    <div class="odds-box fd">
+      <div class="ob-label">FanDuel</div>
+      <div class="ob-value" id="fdOddsDisplay">—</div>
+    </div>
+    <div class="odds-box dk">
+      <div class="ob-label">DraftKings</div>
+      <div class="ob-value" id="dkOddsDisplay">—</div>
+    </div>
+  </div>
+
+  <p class="label">Base stake ($)</p>
+  <div class="stake-row">
+    <input type="number" id="baseStake" value="100" min="1" step="1" />
+    <span style="font-size:11px;color:#555;">used for arb calc</span>
+  </div>
+
+  <div class="lights">
+    <button class="light-btn red"    data-color="#dc2626" data-name="Red">Red</button>
+    <button class="light-btn yellow" data-color="#d97706" data-name="Yellow">Yellow</button>
+    <button class="light-btn green"  data-color="#16a34a" data-name="Green">Green</button>
+  </div>
+  <button class="off-btn" id="offBtn">Turn Off</button>
+
+  <script src="popup.js"></script>
+</body>
+</html>

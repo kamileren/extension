@@ -1,0 +1,12 @@
+{
+  "name": "race-light-relay",
+  "version": "1.0.0",
+  "description": "LAN relay server for Race Light Chrome extension",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
