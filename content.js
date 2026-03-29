@@ -18,6 +18,8 @@
     gap: 0;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     transition: background-color 0.2s ease;
+    opacity: 0.82;
+    backdrop-filter: blur(2px);
   `;
 
   const SEP = () => {
