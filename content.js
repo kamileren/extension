@@ -99,10 +99,27 @@
     if (!p1 || !p2) return null;
     const total = p1 + p2;
     const isArb = total < 1.0;
+
+    const decFd = oddsToDecimal(fdVal);
+    const decDk = oddsToDecimal(dkVal);
+
+    // Round stake1 up first
     const rStake1 = roundStake(base * (p1 / total));
-    const rStake2 = roundStake(base * (p2 / total));
-    const payout1 = rStake1 * oddsToDecimal(fdVal);
-    const payout2 = rStake2 * oddsToDecimal(dkVal);
+
+    // Find minimum stake2 so BOTH outcomes are profitable:
+    //   If FD wins:  payout1 >= rStake1 + stake2  =>  stake2 <= payout1 - rStake1
+    //   If DK wins:  payout2 >= rStake1 + stake2  =>  stake2 >= (rStake1) / (decDk - 1)
+    // We need stake2 such that min(payout1, payout2) - (rStake1 + stake2) > 0
+    // payout1 = rStake1 * decFd (fixed once stake1 is set)
+    // payout2 = stake2 * decDk
+    // Profit if FD wins: rStake1*decFd - rStake1 - stake2 > 0  =>  stake2 < rStake1*(decFd-1)
+    // Profit if DK wins: stake2*decDk - rStake1 - stake2 > 0   =>  stake2 > rStake1/(decDk-1)
+    // So minimum stake2 to guarantee DK-win profit: rStake1 / (decDk - 1)
+    const minStake2 = rStake1 / (decDk - 1);
+    const rStake2 = roundStake(minStake2);
+
+    const payout1 = rStake1 * decFd;
+    const payout2 = rStake2 * decDk;
     const totalStaked = rStake1 + rStake2;
     const actualProfit = Math.min(payout1, payout2) - totalStaked;
     return { isArb, total, rStake1, rStake2, actualProfit, totalStaked };

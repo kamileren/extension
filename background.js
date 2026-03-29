@@ -194,6 +194,11 @@ function roundStake(amount) {
   return Math.ceil(amount * 2) / 2;
 }
 
+function toDecimal(american) {
+  const n = parseInt(american);
+  return n > 0 ? (n / 100 + 1) : (100 / Math.abs(n) + 1);
+}
+
 function checkArb(fd, dk, base) {
   function toImplied(american) {
     const n = parseInt(american);
@@ -203,7 +208,16 @@ function checkArb(fd, dk, base) {
   const p1 = toImplied(fd), p2 = toImplied(dk);
   if (!p1 || !p2) return null;
   const total = p1 + p2;
-  return { isArb: total < 1.0, profit: (base / total) - base, stake1: base * (p1 / total), stake2: base * (p2 / total) };
+  if (total >= 1.0) return { isArb: false };
+
+  const decDk = toDecimal(dk);
+  const rStake1 = roundStake(base * (p1 / total));
+  const rStake2 = roundStake(rStake1 / (decDk - 1));
+  const payout1 = rStake1 * toDecimal(fd);
+  const payout2 = rStake2 * decDk;
+  const totalStaked = rStake1 + rStake2;
+  const profit = Math.min(payout1, payout2) - totalStaked;
+  return { isArb: profit > 0, profit, stake1: rStake1, stake2: rStake2 };
 }
 
 function broadcastToTabs(message) {

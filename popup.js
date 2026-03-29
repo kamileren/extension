@@ -22,15 +22,31 @@ function toImplied(american) {
   return n > 0 ? 100 / (n + 100) : Math.abs(n) / (Math.abs(n) + 100);
 }
 
+function toDecimal(american) {
+  const n = parseInt(american);
+  return n > 0 ? (n / 100 + 1) : (100 / Math.abs(n) + 1);
+}
+
+function roundStake(amount) {
+  if (amount >= 20) return Math.ceil(amount / 5) * 5;
+  if (amount >= 5)  return Math.ceil(amount);
+  return Math.ceil(amount * 2) / 2;
+}
+
 function calcArb(fd, dk, base) {
   const p1 = toImplied(fd);
   const p2 = toImplied(dk);
   if (p1 === null || p2 === null) return null;
   const total = p1 + p2;
-  const profit = (base / total) - base;
-  const stake1 = base * (p1 / total);
-  const stake2 = base * (p2 / total);
-  return { isArb: total < 1.0, total, profit, stake1, stake2 };
+
+  const decDk = toDecimal(dk);
+  const stake1 = roundStake(base * (p1 / total));
+  const stake2 = roundStake(stake1 / (decDk - 1));
+  const payout1 = stake1 * toDecimal(fd);
+  const payout2 = stake2 * decDk;
+  const totalStaked = stake1 + stake2;
+  const profit = Math.min(payout1, payout2) - totalStaked;
+  return { isArb: total < 1.0 && profit > 0, total, profit, stake1, stake2 };
 }
 
 // --- Update arb UI ---
