@@ -136,6 +136,7 @@
   let prevFdOdds = null;
   let prevDkOdds = null;
   let oddsChangedWarning = false; // currently showing a "line moved" warning
+  let dkBetPlaced = null; // { wagered, payout } when DK bet is confirmed
 
   // Flash an odds element red briefly to signal it changed
   function flashOddsEl(el, newlyBad) {
@@ -227,6 +228,41 @@
       return;
     }
 
+    // --- DK bet already placed — show FD hedge ---
+    const bp = state.dkBetPlaced;
+    if (bp && fd) {
+      // DK wagered is fixed. Find FD stake so that FD payout >= dkPayout (lock in profit on FD win)
+      // and FD stake <= dkPayout - dkWagered (so DK win still profits)
+      // Simplest guaranteed profit: fdStake = dkPayout / decFd  (FD payout exactly equals DK payout)
+      // Then profit = dkPayout - dkWagered - fdStake on either win
+      const decFd = oddsToDecimal(fd);
+      const rawFdStake = bp.payout / decFd;
+      const fdHedge = roundStake(rawFdStake);
+      const fdPayout = fdHedge * decFd;
+      const profitIfFdWins = fdPayout - fdHedge - bp.wagered;
+      const profitIfDkWins = bp.payout - fdHedge - bp.wagered;
+      const minProfit = Math.min(profitIfFdWins, profitIfDkWins);
+
+      if (minProfit > 0) {
+        overlay.style.backgroundColor = '#1d4ed8';
+        arbStatus.textContent = 'DK BET PLACED — BET FD NOW';
+        arbProfit.textContent  = `+$${minProfit.toFixed(2)} locked`;
+        arbProfit.style.color  = '#93c5fd';
+        arbSub.textContent     = `DK: $${bp.wagered.toFixed(2)} wagered · payout $${bp.payout.toFixed(2)}`;
+        fdStake.textContent    = `Bet $${fdHedge} NOW`;
+        dkStake.textContent    = `Placed $${bp.wagered.toFixed(2)}`;
+      } else {
+        overlay.style.backgroundColor = '#78350f';
+        arbStatus.textContent = 'DK PLACED — NO HEDGE';
+        arbProfit.textContent  = 'Can\'t lock profit';
+        arbProfit.style.color  = '#fcd34d';
+        arbSub.textContent     = `DK: $${bp.wagered.toFixed(2)} wagered · odds shifted`;
+        fdStake.textContent    = '';
+        dkStake.textContent    = `Placed $${bp.wagered.toFixed(2)}`;
+      }
+      return;
+    }
+
     // --- Normal arb display ---
     if (fd && dk) {
       const arb = calcArb(fd, dk, base);
@@ -262,11 +298,17 @@
 
   chrome.runtime.sendMessage({ type: 'GET_STATE' }, (response) => {
     if (chrome.runtime.lastError) return;
-    if (response) applyState(response);
+    if (response) {
+      dkBetPlaced = response.dkBetPlaced || null;
+      applyState(response);
+    }
   });
 
   chrome.runtime.onMessage.addListener((message) => {
-    if (message.type === 'STATE_UPDATE') applyState(message);
+    if (message.type === 'STATE_UPDATE') {
+      if (message.dkBetPlaced !== undefined) dkBetPlaced = message.dkBetPlaced;
+      applyState(message);
+    }
   });
 
   // --- Sportsbook detection ---
@@ -362,6 +404,53 @@
     }
   }
 
+  // --- DK bet placed detection ---
+  let lastBetPlacedState = false;
+
+  function scrapeDKBetPlaced() {
+    if (!isDraftKings) return;
+    const titleEl = document.querySelector('[data-testid="betslip-header-title"]');
+    if (!titleEl) return;
+    const titleText = titleEl.textContent.trim().toLowerCase();
+    const isBetPlaced = titleText.includes('bet placed') || titleText.includes('betplaced');
+
+    if (isBetPlaced && !lastBetPlacedState) {
+      lastBetPlacedState = true;
+      // Scrape wagered and potential payout amounts
+      // DK shows these in the bet receipt — look for currency amounts
+      let wagered = null;
+      let payout  = null;
+
+      // Try labeled rows first (most reliable)
+      for (const el of document.querySelectorAll('[data-testid]')) {
+        const tid = el.getAttribute('data-testid') || '';
+        const text = el.textContent.trim().replace(/[$,]/g, '');
+        if (tid.includes('wager') && /^\d+(\.\d+)?$/.test(text))  wagered = parseFloat(text);
+        if (tid.includes('payout') && /^\d+(\.\d+)?$/.test(text)) payout  = parseFloat(text);
+      }
+
+      // Fallback: scan all text for dollar amounts next to labels
+      if (!wagered || !payout) {
+        const allText = document.querySelectorAll('span, div, p');
+        for (let i = 0; i < allText.length; i++) {
+          const label = allText[i].textContent.trim().toLowerCase();
+          const next  = allText[i + 1] && allText[i + 1].textContent.trim().replace(/[$,]/g, '');
+          if (!wagered && label.includes('total wager') && next && /^\d+(\.\d+)?$/.test(next))
+            wagered = parseFloat(next);
+          if (!payout && (label.includes('total potential') || label.includes('potential payout')) && next && /^\d+(\.\d+)?$/.test(next))
+            payout = parseFloat(next);
+        }
+      }
+
+      if (wagered && payout) {
+        chrome.runtime.sendMessage({ type: 'DK_BET_PLACED', wagered, payout });
+      }
+    } else if (!isBetPlaced && lastBetPlacedState) {
+      lastBetPlacedState = false;
+      chrome.runtime.sendMessage({ type: 'DK_BET_CLEARED' });
+    }
+  }
+
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === 'FILL_DK_STAKE' && isDraftKings) fillDKStake(message.amount);
     if (message.type === 'FILL_FD_STAKE' && isFanduel)    fillFDStake(message.amount);
@@ -371,6 +460,10 @@
   setTimeout(checkAndSendOdds, 500);
   setTimeout(checkAndSendOdds, 2000);
   setTimeout(checkAndSendOdds, 5000);
+
+  if (isDraftKings) {
+    setInterval(scrapeDKBetPlaced, 800);
+  }
 
   // Clear betslip on tab close to prevent accidental parlays
   if (isFanduel) {

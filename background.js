@@ -35,7 +35,7 @@ function connect(ip) {
     if (parsed.ping) return;
 
     // Merge into storage
-    chrome.storage.local.get(['isOn', 'fdOdds', 'dkOdds', 'base', 'fdSuspended', 'dkSuspended'], (data) => {
+    chrome.storage.local.get(['isOn', 'fdOdds', 'dkOdds', 'base', 'fdSuspended', 'dkSuspended', 'dkBetPlaced'], (data) => {
       const updated = {
         isOn:        parsed.isOn        !== undefined ? parsed.isOn        : (data.isOn        ?? false),
         fdOdds:      parsed.fdOdds      !== undefined ? parsed.fdOdds      : (data.fdOdds      ?? null),
@@ -43,6 +43,7 @@ function connect(ip) {
         base:        parsed.base        !== undefined ? parsed.base        : (data.base        ?? 100),
         fdSuspended: parsed.fdSuspended !== undefined ? parsed.fdSuspended : (data.fdSuspended ?? false),
         dkSuspended: parsed.dkSuspended !== undefined ? parsed.dkSuspended : (data.dkSuspended ?? false),
+        dkBetPlaced: parsed.dkBetPlaced !== undefined ? parsed.dkBetPlaced : (data.dkBetPlaced ?? null),
       };
       if (parsed.color !== undefined) updated.lastColor = parsed.color;
       chrome.storage.local.set(updated);
@@ -168,8 +169,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
     });
 
+  } else if (message.type === 'DK_BET_PLACED') {
+    const bp = { wagered: message.wagered, payout: message.payout };
+    chrome.storage.local.set({ dkBetPlaced: bp });
+    broadcastToTabs({ type: 'STATE_UPDATE', dkBetPlaced: bp });
+    wsSend({ type: 'STATE_UPDATE', dkBetPlaced: bp });
+
+  } else if (message.type === 'DK_BET_CLEARED') {
+    chrome.storage.local.remove('dkBetPlaced');
+    broadcastToTabs({ type: 'STATE_UPDATE', dkBetPlaced: null });
+    wsSend({ type: 'STATE_UPDATE', dkBetPlaced: null });
+
   } else if (message.type === 'GET_STATE') {
-    chrome.storage.local.get(['isOn', 'fdOdds', 'dkOdds', 'base', 'fdSuspended', 'dkSuspended'], (data) => {
+    chrome.storage.local.get(['isOn', 'fdOdds', 'dkOdds', 'base', 'fdSuspended', 'dkSuspended', 'dkBetPlaced'], (data) => {
       sendResponse({
         isOn:        data.isOn        ?? false,
         fdOdds:      data.fdOdds      ?? null,
@@ -177,6 +189,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         base:        data.base        ?? 100,
         fdSuspended: data.fdSuspended ?? false,
         dkSuspended: data.dkSuspended ?? false,
+        dkBetPlaced: data.dkBetPlaced ?? null,
       });
     });
     return true;
