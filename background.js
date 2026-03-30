@@ -217,9 +217,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // --- Helpers ---
 function roundStake(amount) {
-  if (amount >= 20) return Math.ceil(amount / 5) * 5;
-  if (amount >= 5)  return Math.ceil(amount);
-  return Math.ceil(amount * 2) / 2;
+  return Math.ceil(amount);
 }
 
 function toDecimal(american) {
