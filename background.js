@@ -35,7 +35,7 @@ function connect(ip) {
     if (parsed.ping) return;
 
     // Merge into storage
-    chrome.storage.local.get(['isOn', 'fdOdds', 'dkOdds', 'base', 'fdSuspended', 'dkSuspended', 'dkBetPlaced'], (data) => {
+    chrome.storage.local.get(['isOn', 'fdOdds', 'dkOdds', 'base', 'fdSuspended', 'dkSuspended', 'dkBetPlaced', 'fdMaxWager'], (data) => {
       const updated = {
         isOn:        parsed.isOn        !== undefined ? parsed.isOn        : (data.isOn        ?? false),
         fdOdds:      parsed.fdOdds      !== undefined ? parsed.fdOdds      : (data.fdOdds      ?? null),
@@ -44,6 +44,7 @@ function connect(ip) {
         fdSuspended: parsed.fdSuspended !== undefined ? parsed.fdSuspended : (data.fdSuspended ?? false),
         dkSuspended: parsed.dkSuspended !== undefined ? parsed.dkSuspended : (data.dkSuspended ?? false),
         dkBetPlaced: parsed.dkBetPlaced !== undefined ? parsed.dkBetPlaced : (data.dkBetPlaced ?? null),
+        fdMaxWager:  parsed.fdMaxWager  !== undefined ? parsed.fdMaxWager  : (data.fdMaxWager  ?? null),
       };
       if (parsed.color !== undefined) updated.lastColor = parsed.color;
       chrome.storage.local.set(updated);
@@ -53,17 +54,15 @@ function connect(ip) {
       const fd = updated.fdOdds;
       const dk = updated.dkOdds;
       if (fd && dk && !updated.fdSuspended && !updated.dkSuspended) {
-        const arbResult = checkArb(fd, dk, updated.base);
+        const arbResult = checkArb(fd, dk, updated.base, updated.fdMaxWager);
         if (arbResult && arbResult.isArb) {
-          const fdAmount = roundStake(arbResult.stake1);
-          const dkAmount = roundStake(arbResult.stake2);
           chrome.tabs.query({}, (tabs) => {
             for (const tab of tabs) {
               if (!tab.url) continue;
               if (tab.url.includes('draftkings.'))
-                chrome.tabs.sendMessage(tab.id, { type: 'FILL_DK_STAKE', amount: dkAmount }).catch(() => {});
+                chrome.tabs.sendMessage(tab.id, { type: 'FILL_DK_STAKE', amount: arbResult.stake2 }).catch(() => {});
               if (tab.url.includes('fanduel.'))
-                chrome.tabs.sendMessage(tab.id, { type: 'FILL_FD_STAKE', amount: fdAmount }).catch(() => {});
+                chrome.tabs.sendMessage(tab.id, { type: 'FILL_FD_STAKE', amount: arbResult.stake1 }).catch(() => {});
             }
           });
         }
@@ -134,35 +133,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   } else if (message.type === 'ODDS_UPDATE') {
     const key          = message.book === 'fd' ? 'fdOdds'      : 'dkOdds';
     const suspendedKey = message.book === 'fd' ? 'fdSuspended' : 'dkSuspended';
-    chrome.storage.local.get(['isOn', 'fdOdds', 'dkOdds', 'base', 'fdSuspended', 'dkSuspended'], (data) => {
+    chrome.storage.local.get(['isOn', 'fdOdds', 'dkOdds', 'base', 'fdSuspended', 'dkSuspended', 'fdMaxWager'], (data) => {
       const fdSuspended = message.book === 'fd' ? !!message.suspended : !!data.fdSuspended;
       const dkSuspended = message.book === 'dk' ? !!message.suspended : !!data.dkSuspended;
+      const fdMaxWager  = message.book === 'fd' ? (message.maxWager ?? null) : (data.fdMaxWager ?? null);
       const updated = {
         isOn:        data.isOn   ?? false,
         fdOdds:      data.fdOdds ?? null,
         dkOdds:      data.dkOdds ?? null,
         base:        data.base   ?? 100,
-        fdSuspended, dkSuspended,
+        fdSuspended, dkSuspended, fdMaxWager,
         [key]: message.odds,
       };
-      chrome.storage.local.set({ [key]: message.odds, [suspendedKey]: !!message.suspended });
+      chrome.storage.local.set({ [key]: message.odds, [suspendedKey]: !!message.suspended, fdMaxWager });
       broadcastToTabs({ type: 'STATE_UPDATE', ...updated });
       wsSend({ type: 'STATE_UPDATE', ...updated });
 
       const fd = updated.fdOdds;
       const dk = updated.dkOdds;
       if (fd && dk && !fdSuspended && !dkSuspended) {
-        const arbResult = checkArb(fd, dk, updated.base);
+        const arbResult = checkArb(fd, dk, updated.base, fdMaxWager);
         if (arbResult && arbResult.isArb) {
-          const fdAmount = roundStake(arbResult.stake1);
-          const dkAmount = roundStake(arbResult.stake2);
           chrome.tabs.query({}, (tabs) => {
             for (const tab of tabs) {
               if (!tab.url) continue;
               if (tab.url.includes('draftkings.'))
-                chrome.tabs.sendMessage(tab.id, { type: 'FILL_DK_STAKE', amount: dkAmount }).catch(() => {});
+                chrome.tabs.sendMessage(tab.id, { type: 'FILL_DK_STAKE', amount: arbResult.stake2 }).catch(() => {});
               if (tab.url.includes('fanduel.'))
-                chrome.tabs.sendMessage(tab.id, { type: 'FILL_FD_STAKE', amount: fdAmount }).catch(() => {});
+                chrome.tabs.sendMessage(tab.id, { type: 'FILL_FD_STAKE', amount: arbResult.stake1 }).catch(() => {});
             }
           });
         }
@@ -197,7 +195,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     wsSend({ type: 'STATE_UPDATE', dkBetPlaced: null });
 
   } else if (message.type === 'GET_STATE') {
-    chrome.storage.local.get(['isOn', 'fdOdds', 'dkOdds', 'base', 'fdSuspended', 'dkSuspended', 'dkBetPlaced'], (data) => {
+    chrome.storage.local.get(['isOn', 'fdOdds', 'dkOdds', 'base', 'fdSuspended', 'dkSuspended', 'dkBetPlaced', 'fdMaxWager'], (data) => {
       sendResponse({
         isOn:        data.isOn        ?? false,
         fdOdds:      data.fdOdds      ?? null,
@@ -206,6 +204,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         fdSuspended: data.fdSuspended ?? false,
         dkSuspended: data.dkSuspended ?? false,
         dkBetPlaced: data.dkBetPlaced ?? null,
+        fdMaxWager:  data.fdMaxWager  ?? null,
       });
     });
     return true;
@@ -228,7 +227,7 @@ function toDecimal(american) {
   return n > 0 ? (n / 100 + 1) : (100 / Math.abs(n) + 1);
 }
 
-function checkArb(fd, dk, base) {
+function checkArb(fd, dk, base, fdMaxWager) {
   function toImplied(american) {
     const n = parseInt(american);
     if (isNaN(n)) return null;
@@ -239,10 +238,16 @@ function checkArb(fd, dk, base) {
   const total = p1 + p2;
   if (total >= 1.0) return { isArb: false };
 
+  const decFd = toDecimal(fd);
   const decDk = toDecimal(dk);
-  const rStake1 = roundStake(base * (p1 / total));
+
+  // Ideal stake1 from base, then cap to fdMaxWager if present
+  let rStake1 = roundStake(base * (p1 / total));
+  if (fdMaxWager && rStake1 > fdMaxWager) rStake1 = fdMaxWager;
+
+  // Derive stake2 from the (possibly capped) stake1
   const rStake2 = roundStake(rStake1 / (decDk - 1));
-  const payout1 = rStake1 * toDecimal(fd);
+  const payout1 = rStake1 * decFd;
   const payout2 = rStake2 * decDk;
   const totalStaked = rStake1 + rStake2;
   const profit = Math.min(payout1, payout2) - totalStaked;

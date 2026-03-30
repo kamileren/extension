@@ -13,7 +13,7 @@ const fdOddsDisplay  = document.getElementById('fdOddsDisplay');
 const dkOddsDisplay  = document.getElementById('dkOddsDisplay');
 const baseStakeInput = document.getElementById('baseStake');
 
-let state = { isOn: false, fdOdds: null, dkOdds: null, base: 100, fdSuspended: false, dkSuspended: false };
+let state = { isOn: false, fdOdds: null, dkOdds: null, base: 100, fdSuspended: false, dkSuspended: false, fdMaxWager: null };
 
 // --- Arb math ---
 function toImplied(american) {
@@ -33,14 +33,16 @@ function roundStake(amount) {
   return Math.ceil(amount * 2) / 2;
 }
 
-function calcArb(fd, dk, base) {
+function calcArb(fd, dk, base, fdMaxWager) {
   const p1 = toImplied(fd);
   const p2 = toImplied(dk);
   if (p1 === null || p2 === null) return null;
   const total = p1 + p2;
 
   const decDk = toDecimal(dk);
-  const stake1 = roundStake(base * (p1 / total));
+  let stake1 = roundStake(base * (p1 / total));
+  if (fdMaxWager && stake1 > fdMaxWager) stake1 = fdMaxWager;
+
   const stake2 = roundStake(stake1 / (decDk - 1));
   const payout1 = stake1 * toDecimal(fd);
   const payout2 = stake2 * decDk;
@@ -76,7 +78,7 @@ function updateArbUI() {
     return;
   }
 
-  const arb = calcArb(fd, dk, base);
+  const arb = calcArb(fd, dk, base, state.fdMaxWager);
   if (!arb) return;
 
   if (arb.isArb) {
@@ -111,7 +113,7 @@ btnFD.addEventListener('click', () => setBook('FanDuel'));
 btnDK.addEventListener('click', () => setBook('DraftKings'));
 
 // --- Load saved state on open ---
-chrome.storage.local.get(['serverIp', 'isOn', 'fdOdds', 'dkOdds', 'base', 'myBook', 'fdSuspended', 'dkSuspended', 'lastColor'], (data) => {
+chrome.storage.local.get(['serverIp', 'isOn', 'fdOdds', 'dkOdds', 'base', 'myBook', 'fdSuspended', 'dkSuspended', 'lastColor', 'fdMaxWager'], (data) => {
   if (data.serverIp) serverIpInput.value = data.serverIp;
   state.isOn        = data.isOn        ?? false;
   state.fdOdds      = data.fdOdds      ?? null;
@@ -119,6 +121,7 @@ chrome.storage.local.get(['serverIp', 'isOn', 'fdOdds', 'dkOdds', 'base', 'myBoo
   state.base        = data.base        ?? 100;
   state.fdSuspended = data.fdSuspended ?? false;
   state.dkSuspended = data.dkSuspended ?? false;
+  state.fdMaxWager  = data.fdMaxWager  ?? null;
   baseStakeInput.value = state.base;
   setBook(data.myBook || null);
   updateArbUI();
@@ -186,6 +189,7 @@ chrome.runtime.onMessage.addListener((message) => {
     if (message.dkOdds      !== undefined) state.dkOdds      = message.dkOdds;
     if (message.fdSuspended !== undefined) state.fdSuspended = message.fdSuspended;
     if (message.dkSuspended !== undefined) state.dkSuspended = message.dkSuspended;
+    if (message.fdMaxWager  !== undefined) state.fdMaxWager  = message.fdMaxWager;
     if (message.base        !== undefined) { state.base = message.base; baseStakeInput.value = message.base; }
     if (message.isOn        !== undefined) state.isOn = message.isOn;
     updateArbUI();
