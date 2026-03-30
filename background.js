@@ -216,9 +216,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // --- Helpers ---
-function roundStake(amount) {
-  return Math.ceil(amount);
-}
+function roundStake(amount) { return Math.ceil(amount); }
 
 function toDecimal(american) {
   const n = parseInt(american);
@@ -239,17 +237,22 @@ function checkArb(fd, dk, base, fdMaxWager) {
   const decFd = toDecimal(fd);
   const decDk = toDecimal(dk);
 
-  // Ideal stake1 from base, then cap to fdMaxWager if present
-  let rStake1 = roundStake(base * (p1 / total));
-  if (fdMaxWager && rStake1 > fdMaxWager) rStake1 = fdMaxWager;
+  // Exact stakes that produce equal payouts on both sides
+  // payout = stake1 * decFd = stake2 * decDk  => ratio stake1:stake2 = decDk:decFd
+  // stake1 + stake2 = base  => stake1 = base * decDk / (decFd + decDk)
+  let exactStake1 = base * decDk / (decFd + decDk);
+  let exactStake2 = base * decFd / (decFd + decDk);
 
-  // Derive stake2 from the (possibly capped) stake1
-  const rStake2 = roundStake(rStake1 / (decDk - 1));
-  const payout1 = rStake1 * decFd;
-  const payout2 = rStake2 * decDk;
-  const totalStaked = rStake1 + rStake2;
-  const profit = Math.min(payout1, payout2) - totalStaked;
-  return { isArb: profit > 0, profit, stake1: rStake1, stake2: rStake2 };
+  // Cap FD stake to max wager if needed, rescale DK to match
+  if (fdMaxWager && exactStake1 > fdMaxWager) {
+    exactStake1 = fdMaxWager;
+    exactStake2 = exactStake1 * decFd / decDk;
+  }
+
+  const s1 = Math.floor(exactStake1);
+  const s2 = Math.floor(exactStake2);
+  const profit = Math.min(s1 * decFd, s2 * decDk) - (s1 + s2);
+  return { isArb: profit > 0, profit, stake1: s1, stake2: s2 };
 }
 
 function broadcastToTabs(message) {

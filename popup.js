@@ -27,25 +27,27 @@ function toDecimal(american) {
   return n > 0 ? (n / 100 + 1) : (100 / Math.abs(n) + 1);
 }
 
-function roundStake(amount) {
-  return Math.ceil(amount);
-}
-
 function calcArb(fd, dk, base, fdMaxWager) {
   const p1 = toImplied(fd);
   const p2 = toImplied(dk);
   if (p1 === null || p2 === null) return null;
   const total = p1 + p2;
 
+  const decFd = toDecimal(fd);
   const decDk = toDecimal(dk);
-  let stake1 = roundStake(base * (p1 / total));
-  if (fdMaxWager && stake1 > fdMaxWager) stake1 = fdMaxWager;
 
-  const stake2 = roundStake(stake1 / (decDk - 1));
-  const payout1 = stake1 * toDecimal(fd);
-  const payout2 = stake2 * decDk;
-  const totalStaked = stake1 + stake2;
-  const profit = Math.min(payout1, payout2) - totalStaked;
+  // Exact equal-payout stakes
+  let exactS1 = base * decDk / (decFd + decDk);
+  let exactS2 = base * decFd / (decFd + decDk);
+
+  if (fdMaxWager && exactS1 > fdMaxWager) {
+    exactS1 = fdMaxWager;
+    exactS2 = exactS1 * decFd / decDk;
+  }
+
+  const stake1 = Math.floor(exactS1);
+  const stake2 = Math.floor(exactS2);
+  const profit = Math.min(stake1 * decFd, stake2 * decDk) - (stake1 + stake2);
   return { isArb: total < 1.0 && profit > 0, total, profit, stake1, stake2 };
 }
 

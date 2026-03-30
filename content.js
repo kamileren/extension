@@ -85,9 +85,7 @@
     return n > 0 ? 100 / (n + 100) : Math.abs(n) / (Math.abs(n) + 100);
   }
 
-  function roundStake(amount) {
-    return Math.ceil(amount);
-  }
+  function roundStake(amount) { return Math.ceil(amount); }
 
   function oddsToDecimal(american) {
     const n = parseInt(american);
@@ -98,20 +96,23 @@
     const p1 = toImplied(fdVal), p2 = toImplied(dkVal);
     if (!p1 || !p2) return null;
     const total = p1 + p2;
-    const isArb = total < 1.0;
 
     const decFd = oddsToDecimal(fdVal);
     const decDk = oddsToDecimal(dkVal);
 
-    let rStake1 = roundStake(base * (p1 / total));
-    if (fdMaxWager && rStake1 > fdMaxWager) rStake1 = fdMaxWager;
+    // Exact equal-payout stakes
+    let exactS1 = base * decDk / (decFd + decDk);
+    let exactS2 = base * decFd / (decFd + decDk);
 
-    const rStake2 = roundStake(rStake1 / (decDk - 1));
-    const payout1 = rStake1 * decFd;
-    const payout2 = rStake2 * decDk;
-    const totalStaked = rStake1 + rStake2;
-    const actualProfit = Math.min(payout1, payout2) - totalStaked;
-    return { isArb, total, rStake1, rStake2, actualProfit, totalStaked };
+    if (fdMaxWager && exactS1 > fdMaxWager) {
+      exactS1 = fdMaxWager;
+      exactS2 = exactS1 * decFd / decDk;
+    }
+
+    const rStake1 = Math.floor(exactS1);
+    const rStake2 = Math.floor(exactS2);
+    const actualProfit = Math.min(rStake1 * decFd, rStake2 * decDk) - (rStake1 + rStake2);
+    return { isArb: total < 1.0 && actualProfit > 0, total, rStake1, rStake2, actualProfit, totalStaked: rStake1 + rStake2 };
   }
 
   // Was the arb profitable before this odds change?
