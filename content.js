@@ -233,11 +233,14 @@
     // --- DK bet already placed — show FD hedge ---
     const bp = state.dkBetPlaced;
     if (bp && fd) {
-      // DK wagered is fixed. Find FD stake so that FD payout >= dkPayout (lock in profit on FD win)
-      // and FD stake <= dkPayout - dkWagered (so DK win still profits)
-      // Simplest guaranteed profit: fdStake = dkPayout / decFd  (FD payout exactly equals DK payout)
-      // Then profit = dkPayout - dkWagered - fdStake on either win
+      // Use the receipt-derived DK odds if live odds are gone
+      const effectiveDkOdds = (dk) || bp.impliedDkOdds;
       const decFd = oddsToDecimal(fd);
+      const decDk = effectiveDkOdds ? oddsToDecimal(effectiveDkOdds) : (bp.payout / bp.wagered);
+
+      // fdStake = dkPayout / decFd makes FD payout == DK payout, guaranteeing profit on FD win
+      // But we also need DK win to profit: bp.payout - fdHedge - bp.wagered > 0
+      // So fdHedge < bp.payout - bp.wagered (i.e. less than DK profit)
       const rawFdStake = bp.payout / decFd;
       const fdHedge = roundStake(rawFdStake);
       const fdPayout = fdHedge * decFd;
@@ -423,29 +426,33 @@
       let wagered = null;
       let payout  = null;
 
-      // Try labeled rows first (most reliable)
-      for (const el of document.querySelectorAll('[data-testid]')) {
-        const tid = el.getAttribute('data-testid') || '';
-        const text = el.textContent.trim().replace(/[$,]/g, '');
-        if (tid.includes('wager') && /^\d+(\.\d+)?$/.test(text))  wagered = parseFloat(text);
-        if (tid.includes('payout') && /^\d+(\.\d+)?$/.test(text)) payout  = parseFloat(text);
-      }
+      // Use exact data-testid attributes from the DK receipt
+      const wageredEl = document.querySelector('[data-testid="receipt-total-wagered"]');
+      const payoutEl  = document.querySelector('[data-testid="receipt-total-potential-payout"]');
 
-      // Fallback: scan all text for dollar amounts next to labels
+      if (wageredEl) wagered = parseFloat(wageredEl.textContent.replace(/[^0-9.]/g, ''));
+      if (payoutEl)  payout  = parseFloat(payoutEl.textContent.replace(/[^0-9.]/g, ''));
+
+      // Fallback: scan labeled elements
       if (!wagered || !payout) {
-        const allText = document.querySelectorAll('span, div, p');
-        for (let i = 0; i < allText.length; i++) {
-          const label = allText[i].textContent.trim().toLowerCase();
-          const next  = allText[i + 1] && allText[i + 1].textContent.trim().replace(/[$,]/g, '');
-          if (!wagered && label.includes('total wager') && next && /^\d+(\.\d+)?$/.test(next))
-            wagered = parseFloat(next);
-          if (!payout && (label.includes('total potential') || label.includes('potential payout')) && next && /^\d+(\.\d+)?$/.test(next))
-            payout = parseFloat(next);
+        for (const el of document.querySelectorAll('[data-testid]')) {
+          const tid  = el.getAttribute('data-testid') || '';
+          const text = parseFloat(el.textContent.replace(/[^0-9.]/g, ''));
+          if (!wagered && tid.includes('wager') && text)  wagered = text;
+          if (!payout  && tid.includes('payout') && text) payout  = text;
         }
       }
 
       if (wagered && payout) {
-        chrome.runtime.sendMessage({ type: 'DK_BET_PLACED', wagered, payout });
+        // Back-calculate DK odds from receipt so FD side can hedge even if odds disappeared
+        const decimal = payout / wagered;
+        let impliedDkOdds;
+        if (decimal >= 2) {
+          impliedDkOdds = '+' + Math.round((decimal - 1) * 100);
+        } else {
+          impliedDkOdds = '-' + Math.round(100 / (decimal - 1));
+        }
+        chrome.runtime.sendMessage({ type: 'DK_BET_PLACED', wagered, payout, impliedDkOdds });
       }
     } else if (!isBetPlaced && lastBetPlacedState) {
       lastBetPlacedState = false;

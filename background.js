@@ -170,10 +170,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
 
   } else if (message.type === 'DK_BET_PLACED') {
-    const bp = { wagered: message.wagered, payout: message.payout };
-    chrome.storage.local.set({ dkBetPlaced: bp });
-    broadcastToTabs({ type: 'STATE_UPDATE', dkBetPlaced: bp });
-    wsSend({ type: 'STATE_UPDATE', dkBetPlaced: bp });
+    const bp = { wagered: message.wagered, payout: message.payout, impliedDkOdds: message.impliedDkOdds };
+    // Use the receipt-derived odds as dkOdds so FD side auto-fills even if live odds disappeared
+    chrome.storage.local.get(['fdOdds', 'base', 'fdSuspended', 'isOn'], (data) => {
+      chrome.storage.local.set({ dkBetPlaced: bp, dkOdds: message.impliedDkOdds });
+      broadcastToTabs({ type: 'STATE_UPDATE', dkBetPlaced: bp, dkOdds: message.impliedDkOdds });
+      wsSend({ type: 'STATE_UPDATE', dkBetPlaced: bp, dkOdds: message.impliedDkOdds });
+
+      // Auto-fill FD stake based on receipt amounts — hedges the already-placed DK bet
+      const fd = data.fdOdds;
+      if (fd && !data.fdSuspended) {
+        const decFd = toDecimal(fd);
+        const fdHedge = roundStake(bp.payout / decFd);
+        chrome.tabs.query({}, (tabs) => {
+          for (const tab of tabs) {
+            if (tab.url && tab.url.includes('fanduel.'))
+              chrome.tabs.sendMessage(tab.id, { type: 'FILL_FD_STAKE', amount: fdHedge }).catch(() => {});
+          }
+        });
+      }
+    });
 
   } else if (message.type === 'DK_BET_CLEARED') {
     chrome.storage.local.remove('dkBetPlaced');
