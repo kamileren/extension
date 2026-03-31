@@ -388,24 +388,37 @@
     function doFill() {
       if (fdFillTarget === null) return false;
       const target = fdFillTarget;
-      for (const span of document.querySelectorAll('span')) {
-        if (span.textContent.trim().toLowerCase() === 'wager') {
-          const label = span.closest('label');
-          const input = label && label.querySelector('input[type="text"]');
-          if (input) {
-            // Clear first so React sees a value change even if it held the old value in its state
-            fillInput(input, '');
-            fillInput(input, target);
-            return true;
-          }
+      const allSpans = document.querySelectorAll('span');
+      const wagerSpans = [...allSpans].filter(s => s.textContent.trim().toLowerCase() === 'wager');
+      console.log('[FD] doFill | target=%s | wager spans found=%d', target, wagerSpans.length);
+      for (const span of wagerSpans) {
+        const label = span.closest('label');
+        const input = label && label.querySelector('input[type="text"]');
+        console.log('[FD] doFill | span=%o | label=%o | input=%o | input.value=%s', span, label, input, input?.value);
+        if (input) {
+          fillInput(input, '');
+          fillInput(input, target);
+          console.log('[FD] doFill | after fill input.value=%s', input.value);
+          return true;
         }
+      }
+      if (wagerSpans.length === 0) {
+        // Fallback: try any text input visible on page
+        const inputs = [...document.querySelectorAll('input[type="text"]')];
+        console.log('[FD] doFill | no wager span, all text inputs:', inputs.map(i => `val="${i.value}" class="${i.className.slice(0,40)}"`));
       }
       return false;
     }
-    if (doFill()) {
+    const firstResult = doFill();
+    console.log('[FD] initial doFill result=%s', firstResult);
+    if (firstResult) {
       setTimeout(doFill, 300);
       setTimeout(() => { doFill(); fdFillTarget = null; }, 800);
       scheduleReCheck();
+    } else {
+      // Input not ready yet — retry anyway
+      setTimeout(() => { const r = doFill(); console.log('[FD] retry 300ms result=%s', r); }, 300);
+      setTimeout(() => { const r = doFill(); console.log('[FD] retry 800ms result=%s', r); fdFillTarget = null; }, 800);
     }
   }
 
