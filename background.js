@@ -55,7 +55,7 @@ function connect(ip) {
       const dk = updated.dkOdds;
       if (fd && dk && !updated.fdSuspended && !updated.dkSuspended) {
         const arbResult = checkArb(fd, dk, updated.base, updated.fdMaxWager);
-        if (arbResult && arbResult.isArb) {
+        if (arbResult && arbResult.total < 1.0 && arbResult.stake1 > 0 && arbResult.stake2 > 0) {
           chrome.tabs.query({}, (tabs) => {
             for (const tab of tabs) {
               if (!tab.url) continue;
@@ -153,7 +153,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const dk = updated.dkOdds;
       if (fd && dk && !fdSuspended && !dkSuspended) {
         const arbResult = checkArb(fd, dk, updated.base, fdMaxWager);
-        if (arbResult && arbResult.isArb) {
+        if (arbResult && arbResult.total < 1.0 && arbResult.stake1 > 0 && arbResult.stake2 > 0) {
           chrome.tabs.query({}, (tabs) => {
             for (const tab of tabs) {
               if (!tab.url) continue;
@@ -232,7 +232,7 @@ function checkArb(fd, dk, base, fdMaxWager) {
   const p1 = toImplied(fd), p2 = toImplied(dk);
   if (!p1 || !p2) return null;
   const total = p1 + p2;
-  if (total >= 1.0) return { isArb: false };
+  if (total >= 1.0) return { isArb: false, total };
 
   const decFd = toDecimal(fd);
   const decDk = toDecimal(dk);
@@ -252,7 +252,7 @@ function checkArb(fd, dk, base, fdMaxWager) {
   const s1 = Math.floor(exactStake1);
   const s2 = Math.floor(exactStake2);
   const profit = Math.min(s1 * decFd, s2 * decDk) - (s1 + s2);
-  return { isArb: profit > 0, profit, stake1: s1, stake2: s2 };
+  return { isArb: profit > 0, profit, stake1: s1, stake2: s2, total };
 }
 
 function broadcastToTabs(message) {
