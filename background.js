@@ -137,6 +137,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const fdSuspended = message.book === 'fd' ? !!message.suspended : !!data.fdSuspended;
       const dkSuspended = message.book === 'dk' ? !!message.suspended : !!data.dkSuspended;
       const fdMaxWager  = message.book === 'fd' ? (message.maxWager ?? null) : (data.fdMaxWager ?? null);
+      console.log('[BG] ODDS_UPDATE book=%s | message.maxWager=%s | stored fdMaxWager=%s', message.book, message.maxWager, fdMaxWager);
       const updated = {
         isOn:        data.isOn   ?? false,
         fdOdds:      data.fdOdds ?? null,
@@ -243,8 +244,12 @@ function checkArb(fd, dk, base, fdMaxWager) {
   let exactStake1 = base * decDk / (decFd + decDk);
   let exactStake2 = base * decFd / (decFd + decDk);
 
+  console.log('[ARB] fd=%s dk=%s base=%s fdMaxWager=%s | exactStake1=%s exactStake2=%s',
+    fd, dk, base, fdMaxWager, exactStake1.toFixed(2), exactStake2.toFixed(2));
+
   // Cap FD stake to max wager if needed, rescale DK to match
   if (fdMaxWager && exactStake1 > fdMaxWager) {
+    console.log('[ARB] Capping FD stake from %s to fdMaxWager=%s, rescaling DK', exactStake1.toFixed(2), fdMaxWager);
     exactStake1 = fdMaxWager;
     exactStake2 = exactStake1 * decFd / decDk;
   }
@@ -252,6 +257,7 @@ function checkArb(fd, dk, base, fdMaxWager) {
   const s1 = Math.floor(exactStake1);
   const s2 = Math.floor(exactStake2);
   const profit = Math.min(s1 * decFd, s2 * decDk) - (s1 + s2);
+  console.log('[ARB] Final stake1(FD)=%s stake2(DK)=%s profit=%s', s1, s2, profit.toFixed(2));
   return { isArb: profit > 0, profit, stake1: s1, stake2: s2, total };
 }
 

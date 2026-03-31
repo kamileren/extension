@@ -383,6 +383,7 @@
   function fillFDStake(amount) {
     const maxWager = scrapeFDMaxWager();
     const fillAmount = maxWager ? maxWager : amount;
+    console.log('[FD] fillFDStake called | received amount=%s | maxWager=%s | will fill=%s', amount, maxWager, fillAmount);
     fdFillTarget = fillAmount;
     function doFill() {
       if (fdFillTarget === null) return false;
@@ -414,9 +415,14 @@
       const t = span.textContent.trim().toLowerCase();
       if (t.startsWith('max wager')) {
         const m = t.match(/max wager\s*\$?([\d,.]+)/);
-        if (m) return parseFloat(m[1].replace(/,/g, ''));
+        if (m) {
+          const val = parseFloat(m[1].replace(/,/g, ''));
+          console.log('[FD] scrapeFDMaxWager found:', val, '| raw text:', span.textContent.trim());
+          return val;
+        }
       }
     }
+    console.log('[FD] scrapeFDMaxWager: not found');
     return null;
   }
 
