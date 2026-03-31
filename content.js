@@ -381,7 +381,9 @@
 
   let fdFillTarget = null;
   function fillFDStake(amount) {
-    fdFillTarget = amount;
+    const maxWager = scrapeFDMaxWager();
+    const capped = (maxWager && amount > maxWager) ? maxWager : amount;
+    fdFillTarget = capped;
     function doFill() {
       const fillAmount = fdFillTarget;
       for (const span of document.querySelectorAll('span')) {
