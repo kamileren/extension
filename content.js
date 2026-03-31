@@ -396,9 +396,18 @@
         const input = label && label.querySelector('input[type="text"]');
         console.log('[FD] doFill | span=%o | label=%o | input=%o | input.value=%s', span, label, input, input?.value);
         if (input) {
+          // Focus first so React treats this as a real user interaction
+          input.focus();
+          // Select all and delete so React sees a genuine clear
+          input.select();
+          input.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, bubbles: true }));
           fillInput(input, '');
-          fillInput(input, target);
-          console.log('[FD] doFill | after fill input.value=%s', input.value);
+          // Give React one tick to process the empty state before filling the new value
+          setTimeout(() => {
+            fillInput(input, target);
+            input.blur();
+            console.log('[FD] doFill | after fill input.value=%s', input.value);
+          }, 50);
           return true;
         }
       }
