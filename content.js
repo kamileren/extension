@@ -379,8 +379,11 @@
     scheduleReCheck();
   }
 
+  let fdFillTarget = null;
   function fillFDStake(amount) {
+    fdFillTarget = amount;
     function doFill() {
+      const fillAmount = fdFillTarget;
       for (const span of document.querySelectorAll('span')) {
         if (span.textContent.trim().toLowerCase() === 'wager') {
           const label = span.closest('label');
@@ -388,7 +391,7 @@
           if (input) {
             // Clear first so React sees a value change even if it held the old value in its state
             fillInput(input, '');
-            fillInput(input, amount);
+            fillInput(input, fillAmount);
             return true;
           }
         }

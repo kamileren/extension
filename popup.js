@@ -84,8 +84,9 @@ function updateArbUI() {
   if (arb.isArb) {
     arbCard.className = 'arb-card arb';
     arbStatus.textContent = 'ARB AVAILABLE';
+    const totalStaked = arb.stake1 + arb.stake2;
     arbDetail.innerHTML =
-      `Profit: <span>+$${arb.profit.toFixed(2)}</span> on $${base} total<br>` +
+      `Profit: <span>+$${arb.profit.toFixed(2)}</span> on $${totalStaked} total<br>` +
       `Bet <span>$${arb.stake1.toFixed(2)}</span> FD &nbsp;+&nbsp; <span>$${arb.stake2.toFixed(2)}</span> DK`;
   } else {
     arbCard.className = 'arb-card no-arb';
