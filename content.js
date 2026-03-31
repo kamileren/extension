@@ -370,6 +370,7 @@
     setter.call(input, val);
     input.dispatchEvent(new Event('input',  { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
+    input.dispatchEvent(new Event('blur',   { bubbles: true }));
   }
 
   function fillDKStake(amount) {
@@ -379,12 +380,20 @@
   }
 
   function fillFDStake(amount) {
-    for (const span of document.querySelectorAll('span')) {
-      if (span.textContent.trim().toLowerCase() === 'wager') {
-        const label = span.closest('label');
-        const input = label && label.querySelector('input[type="text"]');
-        if (input) { fillInput(input, amount); scheduleReCheck(); return; }
+    function doFill() {
+      for (const span of document.querySelectorAll('span')) {
+        if (span.textContent.trim().toLowerCase() === 'wager') {
+          const label = span.closest('label');
+          const input = label && label.querySelector('input[type="text"]');
+          if (input) { fillInput(input, amount); return true; }
+        }
       }
+      return false;
+    }
+    if (doFill()) {
+      // Retry after 300ms in case FD's React reverts the value (e.g. after a max wager warning)
+      setTimeout(doFill, 300);
+      scheduleReCheck();
     }
   }
 
