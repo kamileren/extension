@@ -137,7 +137,6 @@
   // Clear both stake inputs on this page when odds move against us
   function clearStakeInputs() {
     if (isFanduel) {
-      fdCachedMaxWager = null;
       for (const span of document.querySelectorAll('span')) {
         if (span.textContent.trim().toLowerCase() === 'wager') {
           const label = span.closest('label');
@@ -381,14 +380,10 @@
   }
 
   let fdFillTarget = null;
-  let fdCachedMaxWager = null;
   function fillFDStake(amount) {
-    const scraped = scrapeFDMaxWager();
-    // Update cache only when we see a new max wager; never clear it once set
-    if (scraped !== null) fdCachedMaxWager = scraped;
-    const maxWager = fdCachedMaxWager;
-    const fillAmount = maxWager ? maxWager : amount;
-    console.log('[FD] fillFDStake called | received amount=%s | scraped=%s | cachedMax=%s | will fill=%s', amount, scraped, maxWager, fillAmount);
+    // amount already capped to fdMaxWager by background.js — just fill it directly
+    const fillAmount = amount;
+    console.log('[FD] fillFDStake called | will fill=%s', fillAmount);
     fdFillTarget = fillAmount;
     function doFill() {
       if (fdFillTarget === null) return false;

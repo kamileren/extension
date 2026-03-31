@@ -136,8 +136,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     chrome.storage.local.get(['isOn', 'fdOdds', 'dkOdds', 'base', 'fdSuspended', 'dkSuspended', 'fdMaxWager'], (data) => {
       const fdSuspended = message.book === 'fd' ? !!message.suspended : !!data.fdSuspended;
       const dkSuspended = message.book === 'dk' ? !!message.suspended : !!data.dkSuspended;
-      const fdMaxWager  = message.book === 'fd' ? (message.maxWager ?? null) : (data.fdMaxWager ?? null);
-      console.log('[BG] ODDS_UPDATE book=%s | message.maxWager=%s | stored fdMaxWager=%s', message.book, message.maxWager, fdMaxWager);
+      // Clear fdMaxWager when FD odds change (new market = new max wager), otherwise keep last seen value
+      const fdOddsChanged = message.book === 'fd' && message.odds !== data.fdOdds;
+      const fdMaxWager = (message.book === 'fd' && message.maxWager != null)
+        ? message.maxWager
+        : (fdOddsChanged ? null : (data.fdMaxWager ?? null));
+      console.log('[BG] ODDS_UPDATE book=%s | message.maxWager=%s | fdOddsChanged=%s | using fdMaxWager=%s', message.book, message.maxWager, fdOddsChanged, fdMaxWager);
       const updated = {
         isOn:        data.isOn   ?? false,
         fdOdds:      data.fdOdds ?? null,
