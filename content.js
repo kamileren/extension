@@ -382,10 +382,11 @@
   let fdFillTarget = null;
   function fillFDStake(amount) {
     const maxWager = scrapeFDMaxWager();
-    const capped = maxWager ? maxWager : amount;
-    fdFillTarget = capped;
+    const fillAmount = maxWager ? maxWager : amount;
+    fdFillTarget = fillAmount;
     function doFill() {
-      const fillAmount = fdFillTarget;
+      if (fdFillTarget === null) return false;
+      const target = fdFillTarget;
       for (const span of document.querySelectorAll('span')) {
         if (span.textContent.trim().toLowerCase() === 'wager') {
           const label = span.closest('label');
@@ -393,7 +394,7 @@
           if (input) {
             // Clear first so React sees a value change even if it held the old value in its state
             fillInput(input, '');
-            fillInput(input, fillAmount);
+            fillInput(input, target);
             return true;
           }
         }
@@ -402,7 +403,7 @@
     }
     if (doFill()) {
       setTimeout(doFill, 300);
-      setTimeout(doFill, 800);
+      setTimeout(() => { doFill(); fdFillTarget = null; }, 800);
       scheduleReCheck();
     }
   }
