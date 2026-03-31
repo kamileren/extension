@@ -50,10 +50,10 @@ function connect(ip) {
       chrome.storage.local.set(updated);
       broadcastToTabs({ type: 'STATE_UPDATE', ...updated, color: parsed.color });
 
-      // Auto-fill stakes if arb
+      // Auto-fill stakes if arb — only fill FD once fdMaxWager is known to avoid filling uncapped amount
       const fd = updated.fdOdds;
       const dk = updated.dkOdds;
-      if (fd && dk && !updated.fdSuspended && !updated.dkSuspended) {
+      if (fd && dk && !updated.fdSuspended && !updated.dkSuspended && updated.fdMaxWager !== null) {
         const arbResult = checkArb(fd, dk, updated.base, updated.fdMaxWager);
         if (arbResult && arbResult.total < 1.0 && arbResult.stake1 > 0 && arbResult.stake2 > 0) {
           chrome.tabs.query({}, (tabs) => {
@@ -151,7 +151,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       const fd = updated.fdOdds;
       const dk = updated.dkOdds;
-      if (fd && dk && !fdSuspended && !dkSuspended) {
+      if (fd && dk && !fdSuspended && !dkSuspended && fdMaxWager !== null) {
         const arbResult = checkArb(fd, dk, updated.base, fdMaxWager);
         if (arbResult && arbResult.total < 1.0 && arbResult.stake1 > 0 && arbResult.stake2 > 0) {
           chrome.tabs.query({}, (tabs) => {
